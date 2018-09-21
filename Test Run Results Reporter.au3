@@ -75,7 +75,7 @@ ConsoleWrite("_SQLite_LibVersion=" & _SQLite_LibVersion() & @CRLF)
 
 FileDelete(@ScriptDir & "\" & $app_name & ".sqlite")
 _SQLite_Open(@ScriptDir & "\" & $app_name & ".sqlite")
-_SQLite_Exec(-1, "CREATE TABLE report (RunID,RunName,ManualTestID,TestTitle,AutoTestID,TestResults);") ; CREATE a Table
+_SQLite_Exec(-1, "CREATE TABLE report (RunID,RunName,ManualTestID,TestTitle,AutoTestID,TestResult,StepDetails);") ; CREATE a Table
 
 ; Startup TestRail
 
@@ -91,50 +91,6 @@ if StringLen(GUICtrlRead($testrail_password_input)) > 0 Then
 	_TestRailAuth()
 
 	GUICtrlSetState($start_button, $GUI_ENABLE)
-
-;	GUICtrlSetState($testrail_project_combo, $GUI_DISABLE)
-;	GUICtrlSetState($testrail_plan_combo, $GUI_DISABLE)
-
-;	GUICtrlSetData($status_input, "Querying TestRail Projects ... ")
-
-;	Local $project_id_name = _TestRailGetProjectsIDAndNameArray()
-;	Local $project_id_str = ""
-
-;	for $i = 0 to (UBound($project_id_name) - 1)
-
-;		if StringLen($project_id_str) > 0 Then
-
-;			$project_id_str = $project_id_str & "|"
-;		EndIf
-
-;		$project_id_str = $project_id_str & $project_id_name[$i][0] & " - " & $project_id_name[$i][1]
-;	Next
-
-;	GUICtrlSetData($testrail_project_combo, $project_id_str)
-;	GUICtrlSetState($testrail_project_combo, $GUI_ENABLE)
-
-;	Local $project_to_select = IniRead($ini_filename, "main", "testrailproject", "")
-;	Local $plan_to_select = IniRead($ini_filename, "main", "testrailplan", "")
-
-;	if StringLen($project_to_select) > 0 Then
-
-;		Local $index = _GUICtrlComboBox_SelectString($testrail_project_combo, $project_to_select)
-
-;		if $index > -1 Then
-
-;			query_testrail_plans()
-
-;			if StringLen($plan_to_select) > 0 Then
-
-;				Local $index = _GUICtrlComboBox_SelectString($testrail_plan_combo, $plan_to_select)
-
-;				if $index > -1 Then
-
-;					query_testrail_runs()
-;				EndIf
-;			EndIf
-;		EndIf
-;	EndIf
 EndIf
 
 GUICtrlSetData($status_input, "")
@@ -224,7 +180,15 @@ While 1
 									".mti {width: 110px; text-align: center;}" & @CRLF & _
 									".tt {width: 300px; text-align: left;}" & @CRLF & _
 									".ati {width: 150px; text-align: center;}" & @CRLF & _
-									".tr {width: 1000px; text-align: left;}" & @CRLF & _
+									".sd {width: 1000px; text-align: left;}" & @CRLF & _
+									".tr {width: 110px; text-align: center;}" & @CRLF & _
+									".trp {width: 110px; text-align: center; background-color: yellowgreen;}" & @CRLF & _
+									".trf {width: 110px; text-align: center; background-color: lightcoral;}" & @CRLF & _
+									".pass {background-color: yellowgreen;}" & @CRLF & _
+									".fail {background-color: lightcoral;}" & @CRLF & _
+									".mp {background-color: yellow;}" & @CRLF & _
+									".rh {background-color: seagreen; color: white;}" & @CRLF & _
+									".i {background-color: deepskyblue;}" & @CRLF & _
 									"</style>" & @CRLF & _
 									"</head>" & @CRLF & _
 									"<body>" & @CRLF & _
@@ -233,7 +197,7 @@ While 1
 
 			for $each in $run_id
 
-				SQLite_to_HTML_table("SELECT ManualTestID AS ""Manual Test ID"",TestTitle AS ""Test Title"",AutoTestID AS ""Auto Test ID"",TestResults AS ""Test Results"" FROM report WHERE RunID = '" & $each & "';", "mti,tt,ati,tr", "", $each)
+				SQLite_to_HTML_table("SELECT ManualTestID AS ""Manual Test ID"",TestTitle AS ""Test Title"",AutoTestID AS ""Auto Test ID"",TestResult AS ""Test Result"",StepDetails AS ""Step Details"" FROM report WHERE RunID = '" & $each & "';", "mti,tt,ati,tr,sd", "", $each)
 			Next
 
 			$html = $html &			"</body>" & @CRLF & _
@@ -349,7 +313,7 @@ Func SQLite_to_HTML_table($query, $classes, $empty_message, $run_id)
 
 			for $i = 0 to ($num_cols - 1)
 
-				$html = $html & "<th>" & $aResult[0][$i] & "</th>" & @CRLF
+				$html = $html & "<th class=""rh"">" & $aResult[0][$i] & "</th>" & @CRLF
 			Next
 
 			$html = $html & "</tr>" & @CRLF
@@ -359,6 +323,20 @@ Func SQLite_to_HTML_table($query, $classes, $empty_message, $run_id)
 				$html = $html & "<tr>"
 
 				for $j = 0 to ($num_cols - 1)
+
+					if $j = 3 Then
+
+						Switch $aResult[$i][$j]
+
+							case "Passed"
+
+								$class[$j] = "trp"
+
+							case "Failed"
+
+								$class[$j] = "trf"
+						EndSwitch
+					EndIf
 
 					$html = $html & "<td class=""" & $class[$j] & """>" & $aResult[$i][$j] & "</td>" & @CRLF
 				Next
