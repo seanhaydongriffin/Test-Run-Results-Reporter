@@ -181,11 +181,13 @@ for $i = 0 to (UBound($rr) - 1) step 4
 							$comment_class = ""
 						EndIf
 
-						if StringInStr($comment_line[$j], "|VIDEO PLAYBACK - ") > 0 Then
+						if StringInStr($comment_line[$j], "|EXTRA VIDEO PATH - ") > 0 Then
 
-							Local $href_pos = StringInStr($comment_line[$j], "|VIDEO PLAYBACK - ") + StringLen("|VIDEO PLAYBACK - ")
+							Local $href_pos = StringInStr($comment_line[$j], "|EXTRA VIDEO PATH - ") + StringLen("|EXTRA VIDEO PATH - ")
 							Local $href = StringMid($comment_line[$j], $href_pos)
-							$comment_line[$j] = StringReplace($comment_line[$j], $href, "<a href=""" & $href & """ target=""_blank"">" & $href & "</a>")
+							Local $href2 = StringReplace($href, "\\\\", "file://///")
+							$href2 = StringReplace($href2, "\\", "/")
+							$comment_line[$j] = StringReplace($comment_line[$j], $href, "<br><a href=""" & $href2 & """ target=""_blank"">" & $href & "</a>")
 						EndIf
 
 						$comment_table = True
