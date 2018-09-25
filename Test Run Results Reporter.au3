@@ -184,8 +184,10 @@ While 1
 									".tr {width: 110px; text-align: center;}" & @CRLF & _
 									".trp {width: 110px; text-align: center; background-color: yellowgreen;}" & @CRLF & _
 									".trf {width: 110px; text-align: center; background-color: lightcoral;}" & @CRLF & _
+									".tru {width: 110px; text-align: center; background-color: lightgray;}" & @CRLF & _
 									".pass {background-color: yellowgreen;}" & @CRLF & _
 									".fail {background-color: lightcoral;}" & @CRLF & _
+									".untested {background-color: lightgray;}" & @CRLF & _
 									".mp {background-color: yellow;}" & @CRLF & _
 									".rh {background-color: seagreen; color: white;}" & @CRLF & _
 									".i {background-color: deepskyblue;}" & @CRLF & _
@@ -197,7 +199,7 @@ While 1
 
 			for $each in $run_id
 
-				SQLite_to_HTML_table("SELECT ManualTestID AS ""Manual Test ID"",TestTitle AS ""Test Title"",AutoTestID AS ""Auto Test ID"",TestResult AS ""Test Result"",StepDetails AS ""Step Details"" FROM report WHERE RunID = '" & $each & "';", "mti,tt,ati,tr,sd", "", $each)
+				SQLite_to_HTML_table("SELECT ManualTestID AS ""Manual Test ID"",TestTitle AS ""Test Title"",AutoTestID AS ""Auto Test ID"",TestResult AS ""Test Result"",StepDetails AS ""Step Details"" FROM report WHERE RunID = '" & $each & "' ORDER BY ManualTestID;", "mti,tt,ati,tr,sd", "", $each)
 			Next
 
 			$html = $html &			"</body>" & @CRLF & _
@@ -283,6 +285,9 @@ Func SQLite_to_HTML_table($query, $classes, $empty_message, $run_id)
 
 	Local $aResult, $iRows, $iColumns, $iRval, $run_name = ""
 
+	$xx = "SELECT RunName AS ""Run Name"" FROM report WHERE RunID = '" & $run_id & "';"
+	ConsoleWrite('@@ Debug(' & @ScriptLineNumber & ') : $xx = ' & $xx & @CRLF & '>Error code: ' & @error & @CRLF) ;### Debug Console
+
 	$iRval = _SQLite_GetTable2d(-1, "SELECT RunName AS ""Run Name"" FROM report WHERE RunID = '" & $run_id & "';", $aResult, $iRows, $iColumns)
 
 	If $iRval = $SQLITE_OK Then
@@ -326,6 +331,8 @@ Func SQLite_to_HTML_table($query, $classes, $empty_message, $run_id)
 
 					if $j = 3 Then
 
+	;					ConsoleWrite('@@ Debug(' & @ScriptLineNumber & ') : $aResult[$i][$j] = ' & $aResult[$i][$j] & @CRLF & '>Error code: ' & @error & @CRLF) ;### Debug Console
+
 						Switch $aResult[$i][$j]
 
 							case "Passed"
@@ -335,6 +342,10 @@ Func SQLite_to_HTML_table($query, $classes, $empty_message, $run_id)
 							case "Failed"
 
 								$class[$j] = "trf"
+
+							case "Untested"
+
+								$class[$j] = "tru"
 						EndSwitch
 					EndIf
 

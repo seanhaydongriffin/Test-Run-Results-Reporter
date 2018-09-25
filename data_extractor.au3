@@ -53,6 +53,7 @@ GUISetState(@SW_SHOW, $main_gui)
 _SQLite_Startup()
 ConsoleWrite("_SQLite_LibVersion=" & _SQLite_LibVersion() & @CRLF)
 _SQLite_Open(@ScriptDir & "\Test Run Results Reporter.sqlite")
+_SQLite_SetTimeout(-1, 10000)
 
 ; Startup TestRail
 
@@ -93,13 +94,18 @@ _TestRailGetRun($testrail_run_id)
 $run_detail = StringRegExp($testrail_json, '(?U)"name":"(.*)".*"config":"(.*)"', 3)
 ;FileWrite(@ScriptDir & "\fred.txt", $testrail_json)
 Global $testrail_run_name = $run_detail[0] & " (" & $run_detail[1] & ")"
+$testrail_run_name = StringReplace($testrail_run_name, "'", "''")
 
 _TestRailGetTests($testrail_run_id)
 $rr = StringRegExp($testrail_json, '(?U)"id":(\d+),.*"status_id":(\d+),.*"title":"(.*)".*"custom_auto_script_ref":"(.*)"', 3)
 ;FileWrite(@ScriptDir & "\fred.txt", $testrail_json)
 
+Local $sqlite_insert[UBound($rr)]
+
 
 for $i = 0 to (UBound($rr) - 1) step 4
+
+	$rr[$i + 2] = StringReplace($rr[$i + 2], "'", "''")
 
 	GUICtrlSetData($progress, ($i / UBound($rr)) * 100)
 
@@ -112,6 +118,10 @@ for $i = 0 to (UBound($rr) - 1) step 4
 		case "2"
 
 			$rr[$i + 1] = "Blocked"
+
+		case "3"
+
+			$rr[$i + 1] = "Untested"
 
 		case "4"
 
@@ -152,6 +162,7 @@ for $i = 0 to (UBound($rr) - 1) step 4
 
 			$comment = StringTrimLeft($comment, 1)
 			$comment = StringTrimRight($comment, 1)
+			$comment = StringReplace($comment, "'", "''")
 
 			Local $comment_line = StringSplit($comment, "\n", 3)
 			$comment = ""
@@ -248,14 +259,33 @@ for $i = 0 to (UBound($rr) - 1) step 4
 			EndIf
 		EndIf
 
+;		FileWrite(@ScriptDir & "\" & $rr[$i] & ".txt", "INSERT INTO report(RunID,RunName,ManualTestID,TestTitle,AutoTestID,TestResult,StepDetails) VALUES ('" & $testrail_run_id & "','" & $testrail_run_name & "','" & $rr[$i] & "','" & $rr[$i + 2] & "','<b>" & $rr[$i + 3] & "</b>','" & $rr[$i + 1] & "','" & $comment & "');")
 		GUICtrlCreateListViewItem($testrail_run_id & "|" & $rr[$i] & "|" & $rr[$i + 2] & "|" & $rr[$i + 3] & "|" & $rr[$i + 1] & "|" & $comment, $listview)
-		_SQLite_Exec(-1, "INSERT INTO report(RunID,RunName,ManualTestID,TestTitle,AutoTestID,TestResult,StepDetails) VALUES ('" & $testrail_run_id & "','" & $testrail_run_name & "','" & $rr[$i] & "','" & $rr[$i + 2] & "','<b>" & $rr[$i + 3] & "</b>','" & $rr[$i + 1] & "','" & $comment & "');") ; INSERT Data
+		$sqlite_insert[$i] = "INSERT INTO report(RunID,RunName,ManualTestID,TestTitle,AutoTestID,TestResult,StepDetails) VALUES ('" & $testrail_run_id & "','" & $testrail_run_name & "','" & $rr[$i] & "','" & $rr[$i + 2] & "','<b>" & $rr[$i + 3] & "</b>','" & $rr[$i + 1] & "','" & $comment & "');"
+
+;		_SQLite_Exec(-1, "BEGIN TRANSACTION;")
+;		_SQLite_Exec(-1, "INSERT INTO report(RunID,RunName,ManualTestID,TestTitle,AutoTestID,TestResult,StepDetails) VALUES ('" & $testrail_run_id & "','" & $testrail_run_name & "','" & $rr[$i] & "','" & $rr[$i + 2] & "','<b>" & $rr[$i + 3] & "</b>','" & $rr[$i + 1] & "','" & $comment & "');") ; INSERT Data
+;		_SQLite_Exec(-1, "COMMIT TRANSACTION;")
 	Else
 
+;		FileWrite(@ScriptDir & "\" & $rr[$i] & ".txt", "INSERT INTO report(RunID,RunName,ManualTestID,TestTitle,AutoTestID,TestResult,StepDetails) VALUES ('" & $testrail_run_id & "','" & $testrail_run_name & "','" & $rr[$i] & "','" & $rr[$i + 2] & "','" & $rr[$i + 3] & "','<b>" & $rr[$i + 1] & "</b>','-');")
 		GUICtrlCreateListViewItem($testrail_run_id & "|" & $rr[$i] & "|" & $rr[$i + 2] & "|" & $rr[$i + 3] & "|" & $rr[$i + 1] & "|-", $listview)
-		_SQLite_Exec(-1, "INSERT INTO report(RunID,RunName,ManualTestID,TestTitle,AutoTestID,TestResult,StepDetails) VALUES ('" & $testrail_run_id & "','" & $testrail_run_name & "','" & $rr[$i] & "','" & $rr[$i + 2] & "','" & $rr[$i + 3] & "','<b>" & $rr[$i + 1] & "</b>','-');") ; INSERT Data
+		$sqlite_insert[$i] = "INSERT INTO report(RunID,RunName,ManualTestID,TestTitle,AutoTestID,TestResult,StepDetails) VALUES ('" & $testrail_run_id & "','" & $testrail_run_name & "','" & $rr[$i] & "','" & $rr[$i + 2] & "','" & $rr[$i + 3] & "','" & $rr[$i + 1] & "','-');"
+
+;		_SQLite_Exec(-1, "BEGIN TRANSACTION;")
+;		_SQLite_Exec(-1, "INSERT INTO report(RunID,RunName,ManualTestID,TestTitle,AutoTestID,TestResult,StepDetails) VALUES ('" & $testrail_run_id & "','" & $testrail_run_name & "','" & $rr[$i] & "','" & $rr[$i + 2] & "','" & $rr[$i + 3] & "','" & $rr[$i + 1] & "','-');") ; INSERT Data
+;		_SQLite_Exec(-1, "COMMIT TRANSACTION;")
 	EndIf
 Next
+
+_SQLite_Exec(-1, "BEGIN TRANSACTION;")
+
+for $i = 0 to (UBound($rr) - 1) step 4
+
+	_SQLite_Exec(-1, $sqlite_insert[$i])
+Next
+
+_SQLite_Exec(-1, "COMMIT TRANSACTION;")
 
 GUICtrlSetData($progress, 0)
 GUICtrlSetData($status_input, "")
