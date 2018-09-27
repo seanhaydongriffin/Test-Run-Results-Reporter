@@ -75,23 +75,25 @@ ConsoleWrite("_SQLite_LibVersion=" & _SQLite_LibVersion() & @CRLF)
 
 FileDelete(@ScriptDir & "\" & $app_name & ".sqlite")
 _SQLite_Open(@ScriptDir & "\" & $app_name & ".sqlite")
-_SQLite_Exec(-1, "CREATE TABLE report (RunID,RunName,ManualTestID,TestTitle,AutoTestID,TestResult,StepDetails);") ; CREATE a Table
+_SQLite_Exec(-1, "CREATE TABLE report (RunID,RunName,ManualTestID,TestTitle,AutoTestID,TestResult,StepDetails,TestCaseID,TestCaseOwner,TestCaseStatus,Issues);") ; CREATE a Table
+;_SQLite_Exec(-1, "CREATE TABLE defects_in_tests (TestCaseID,BugID,UNIQUE(TestCaseID, BugID));") ; CREATE a Table
+_SQLite_Exec(-1, "CREATE TABLE defect (BugID,BugSummary,Priority,TestCaseEpicStory,Impact,ActionRequired,FixDate,FixPhase);") ;,UNIQUE(TestCaseEpicStory, BugID));") ; CREATE a Table
 
 ; Startup TestRail
 
-GUICtrlSetData($status_input, "Starting the TestRail connection ... ")
-_TestRailDomainSet("https://janison.testrail.com")
-_TestRailLogin(GUICtrlRead($testrail_username_input), GUICtrlRead($testrail_password_input))
+;GUICtrlSetData($status_input, "Starting the TestRail connection ... ")
+;_TestRailDomainSet("https://janison.testrail.com")
+;_TestRailLogin(GUICtrlRead($testrail_username_input), GUICtrlRead($testrail_password_input))
 
-if StringLen(GUICtrlRead($testrail_password_input)) > 0 Then
+;if StringLen(GUICtrlRead($testrail_password_input)) > 0 Then
 
 	; Authentication
 
-	GUICtrlSetData($status_input, "Authenticating against TestRail ... ")
-	_TestRailAuth()
+;	GUICtrlSetData($status_input, "Authenticating against TestRail ... ")
+;	_TestRailAuth()
 
 	GUICtrlSetState($start_button, $GUI_ENABLE)
-EndIf
+;EndIf
 
 GUICtrlSetData($status_input, "")
 GUIRegisterMsg($WM_COMMAND, "WM_COMMAND")
@@ -119,6 +121,7 @@ While 1
 		Case $start_button
 
 			_SQLite_Exec(-1, "DELETE FROM report;") ; CREATE a Table
+			_SQLite_Exec(-1, "DELETE FROM defect;") ; CREATE a Table
 
 			GUICtrlSetData($progress, 0)
 			GUICtrlSetState($testrail_run_ids_input, $GUI_DISABLE)
@@ -134,7 +137,7 @@ While 1
 
 			for $each in $run_id
 
-				Local $pid = ShellExecute(@ScriptDir & "\data_extractor.exe", """" & GUICtrlRead($testrail_username_input) & """ """ & GUICtrlRead($testrail_password_input) & """ " & $each, "", "", @SW_HIDE)
+				Local $pid = ShellExecute(@ScriptDir & "\data_extractor.exe", """" & GUICtrlRead($testrail_username_input) & """ """ & GUICtrlRead($testrail_password_input) & """ " & $each & " ""sgriffin@janison.com.au"" ""Gri04ffo..""", "", "", @SW_HIDE)
 				GUICtrlCreateListViewItem($each & "|" & $pid & "|In Progress", $listview)
 			Next
 
@@ -177,16 +180,20 @@ While 1
 									"    font-size: 12px;" & @CRLF & _
 									"    font-family: Arial;" & @CRLF & _
 									"}" & @CRLF & _
+									".ds {width: 400px; text-align: left;}" & @CRLF & _
+									".tes {width: 800px; text-align: left;}" & @CRLF & _
 									".mti {width: 110px; text-align: center;}" & @CRLF & _
 									".tt {width: 300px; text-align: left;}" & @CRLF & _
 									".ati {width: 150px; text-align: center;}" & @CRLF & _
 									".sd {width: 1000px; text-align: left;}" & @CRLF & _
+									".tc {width: 300px; text-align: center;}" & @CRLF & _
 									".tr {width: 110px; text-align: center;}" & @CRLF & _
 									".trp {width: 110px; text-align: center; background-color: yellowgreen;}" & @CRLF & _
-									".trf {width: 110px; text-align: center; background-color: lightcoral;}" & @CRLF & _
+									".trf {width: 110px; text-align: center; background-color: lightcoral; color:white;}" & @CRLF & _
 									".tru {width: 110px; text-align: center; background-color: lightgray;}" & @CRLF & _
+									".trb {width: 110px; text-align: center; background-color: darkred; color: white;}" & @CRLF & _
 									".pass {background-color: yellowgreen;}" & @CRLF & _
-									".fail {background-color: lightcoral;}" & @CRLF & _
+									".fail {background-color: lightcoral; color:white;}" & @CRLF & _
 									".untested {background-color: lightgray;}" & @CRLF & _
 									".mp {background-color: yellow;}" & @CRLF & _
 									".rh {background-color: seagreen; color: white;}" & @CRLF & _
@@ -194,12 +201,15 @@ While 1
 									"</style>" & @CRLF & _
 									"</head>" & @CRLF & _
 									"<body>" & @CRLF & _
-									"<h2>Test Run Results Report</h2>" & @CRLF
+									"<h2>Outstanding Defects Report</h2>" & @CRLF
 
+			SQLite_to_HTML_table("SELECT BugID AS ""Defect ID"",BugSummary AS ""Summary"",Priority,'<table><tbody>' || GROUP_CONCAT(TestCaseEpicStory, """") || '</tbody></table>' AS ""Test Case - Epic - Story"",Impact,ActionRequired AS ""Action Required"",FixDate AS ""Fix Date"",FixPhase AS ""Fix Phase"" FROM defect GROUP BY BugID,BugSummary,Priority,Impact,ActionRequired,FixDate,FixPhase ORDER BY BugID;", "tr,ds,tr,tes,tr,tr,tr,tr", "", "")
+
+			$html = $html &			"<h2>Test Run Results Report</h2>" & @CRLF
 
 			for $each in $run_id
 
-				SQLite_to_HTML_table("SELECT ManualTestID AS ""Manual Test ID"",TestTitle AS ""Test Title"",AutoTestID AS ""Auto Test ID"",TestResult AS ""Test Result"",StepDetails AS ""Step Details"" FROM report WHERE RunID = '" & $each & "' ORDER BY ManualTestID;", "mti,tt,ati,tr,sd", "", $each)
+				SQLite_to_HTML_table("SELECT '<a href=""https://janison.testrail.com/index.php?/tests/view/' || ManualTestID || '"" target=""_blank"">' || ManualTestID || '</a><br>' || TestTitle AS ""Manual Test"",AutoTestID AS ""Auto Test"",TestResult AS ""Test Result"",StepDetails AS ""Step Details"",'<table><tbody><tr><td><a href=""https://janison.testrail.com/index.php?/cases/view/' || TestCaseID || '"" target=""_blank"">' || TestCaseID || '</a></td><td>' || TestCaseOwner || '</td><td>' || TestCaseStatus || '</td></tr></tbody></table>' AS ""Test Case - Owner - Status"",Issues AS ""Epic - Story - Bugs"" FROM report WHERE RunID = '" & $each & "' ORDER BY ManualTestID;", "tt,ati,tr,sd,tc,tc", "", $each)
 			Next
 
 			$html = $html &			"</body>" & @CRLF & _
@@ -285,19 +295,22 @@ Func SQLite_to_HTML_table($query, $classes, $empty_message, $run_id)
 
 	Local $aResult, $iRows, $iColumns, $iRval, $run_name = ""
 
-	$xx = "SELECT RunName AS ""Run Name"" FROM report WHERE RunID = '" & $run_id & "';"
-	ConsoleWrite('@@ Debug(' & @ScriptLineNumber & ') : $xx = ' & $xx & @CRLF & '>Error code: ' & @error & @CRLF) ;### Debug Console
+;	$xx = "SELECT RunName AS ""Run Name"" FROM report WHERE RunID = '" & $run_id & "';"
+;	ConsoleWrite('@@ Debug(' & @ScriptLineNumber & ') : $xx = ' & $xx & @CRLF & '>Error code: ' & @error & @CRLF) ;### Debug Console
 
-	$iRval = _SQLite_GetTable2d(-1, "SELECT RunName AS ""Run Name"" FROM report WHERE RunID = '" & $run_id & "';", $aResult, $iRows, $iColumns)
+	if StringLen($run_id) > 0 Then
 
-	If $iRval = $SQLITE_OK Then
+		$iRval = _SQLite_GetTable2d(-1, "SELECT RunName AS ""Run Name"" FROM report WHERE RunID = '" & $run_id & "';", $aResult, $iRows, $iColumns)
 
-		_SQLite_Display2DResult($aResult)
+		If $iRval = $SQLITE_OK Then
 
-		$run_name = $aResult[1][0]
+			_SQLite_Display2DResult($aResult)
+
+			$run_name = $aResult[1][0]
+		EndIf
+
+		$html = $html &	"<h3>Test Run " & $run_id & " - " & $run_name & "</h3>" & @CRLF
 	EndIf
-
-	$html = $html &	"<h3>Test Run " & $run_id & " - " & $run_name & "</h3>" & @CRLF
 
 	$iRval = _SQLite_GetTable2d(-1, $query, $aResult, $iRows, $iColumns)
 
@@ -329,7 +342,7 @@ Func SQLite_to_HTML_table($query, $classes, $empty_message, $run_id)
 
 				for $j = 0 to ($num_cols - 1)
 
-					if $j = 3 Then
+					if $j = 2 Then
 
 	;					ConsoleWrite('@@ Debug(' & @ScriptLineNumber & ') : $aResult[$i][$j] = ' & $aResult[$i][$j] & @CRLF & '>Error code: ' & @error & @CRLF) ;### Debug Console
 
@@ -346,6 +359,10 @@ Func SQLite_to_HTML_table($query, $classes, $empty_message, $run_id)
 							case "Untested"
 
 								$class[$j] = "tru"
+
+							case "Blocked"
+
+								$class[$j] = "trb"
 						EndSwitch
 					EndIf
 
