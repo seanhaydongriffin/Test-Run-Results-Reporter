@@ -16,6 +16,18 @@
 #include <SQLite.dll.au3>
 
 Global $app_name = "Data Extractor"
+Global $project_id
+Global $suite_id
+Global $run_name
+Global $run_config
+Global $test_id
+Global $test_case_id
+Global $test_status_id
+Global $test_title
+Global $test_refs
+Global $test_auto_script_ref
+Global $test_case_status
+Global $test_case_owner
 
 
 ;#cs
@@ -112,6 +124,7 @@ Local $outstanding_defect_description_dict = ObjCreate("Scripting.Dictionary")
 Local $outstanding_defect_test_cases_impacted_dict = ObjCreate("Scripting.Dictionary")
 
 
+GUICtrlSetData($status_input, "Getting TestRail Users List ... ")
 _TestRailGetUsers()
 ;ConsoleWrite('@@ Debug(' & @ScriptLineNumber & ') : $testrail_json = ' & $testrail_json & @CRLF & '>Error code: ' & @error & @CRLF) ;### Debug Console
 ;Exit
@@ -122,31 +135,48 @@ for $i = 0 to (UBound($user) - 1) step 2
 	$user_dict.Add($user[$i], $user[$i + 1])
 Next
 
-
+GUICtrlSetData($status_input, "Getting details for TestRail Run ID " & $testrail_run_id & " ... ")
 _TestRailGetRun($testrail_run_id)
-$run_detail = StringRegExp($testrail_json, '(?U)"name":"(.*)".*"config":"(.*)"', 3)
+$run_detail = StringRegExp($testrail_json, '(?U)"suite_id":(\d+),.*"name":"(.*)".*"config":"(.*)".*"project_id":(\d+),', 3)
 ;FileWrite(@ScriptDir & "\fred.txt", $testrail_json)
 ;ConsoleWrite('@@ Debug(' & @ScriptLineNumber & ') : $testrail_json = ' & $testrail_json & @CRLF & '>Error code: ' & @error & @CRLF) ;### Debug Console
 ;Exit
-Global $testrail_run_name = $run_detail[0] & " (" & $run_detail[1] & ")"
+$suite_id = $run_detail[0]
+$run_name = $run_detail[1]
+$run_config = $run_detail[2]
+$project_id = $run_detail[3]
+
+
+Global $testrail_run_name = $run_name & " (" & $run_config & ")"
 $testrail_run_name = StringReplace($testrail_run_name, "'", "''")
 
+GUICtrlSetData($status_input, "Getting Tests for TestRail Run ID " & $testrail_run_id & " ... ")
 _TestRailGetTests($testrail_run_id)
 Local $rr = StringRegExp($testrail_json, '(?U)"id":(\d+),.*"case_id":(\d+),.*"status_id":(\d+),.*"title":"(.*)".*"refs":"(.*)".*"custom_auto_script_ref":"(.*)".*"custom_test_status":(\d+),.*"custom_owner":(.*),', 3)
 ;FileWrite(@ScriptDir & "\fred.txt", $testrail_json)
 ;ConsoleWrite('@@ Debug(' & @ScriptLineNumber & ') : $testrail_json = ' & $testrail_json & @CRLF & '>Error code: ' & @error & @CRLF) ;### Debug Console
 ;Exit
+GUICtrlSetData($status_input, "")
 
 Local $sqlite_insert[UBound($rr)]
 
-
 for $i = 0 to (UBound($rr) - 1) step 8
 
-	$rr[$i + 3] = StringReplace($rr[$i + 3], "'", "''")
+	$test_id = $rr[$i]
+	$test_case_id = $rr[$i + 1]
+	$test_status_id = $rr[$i + 2]
+	$test_title = $rr[$i + 3]
+	$test_refs = $rr[$i + 4]
+	$test_auto_script_ref = $rr[$i + 5]
+	$test_case_status = $rr[$i + 6]
+	$test_case_owner = $rr[$i + 7]
+
+
+	$test_title = StringReplace($test_title, "'", "''")
 
 	GUICtrlSetData($progress, ($i / UBound($rr)) * 100)
 
-;	_TestRailGetCase($rr[$i + 1])
+;	_TestRailGetCase($test_case_id)
 ;ConsoleWrite('@@ Debug(' & @ScriptLineNumber & ') : $testrail_json = ' & $testrail_json & @CRLF & '>Error code: ' & @error & @CRLF) ;### Debug Console
 ;Exit
 
@@ -154,22 +184,22 @@ for $i = 0 to (UBound($rr) - 1) step 8
 
 	Local $story_epic_str = ""
 
-	if $story_epic_dict.Exists($rr[$i + 4]) = True Then
+	if $story_epic_dict.Exists($test_refs) = True Then
 
-;		$story_epic_str = $rr[$i + 4] & " [" & $story_epic_dict.Item($rr[$i + 4]) & "]"
-		$story_epic_str = "<tr><td><a href=""https://janisoncls.atlassian.net/browse/" & $story_epic_dict.Item($rr[$i + 4]) & """ target=""_blank"">" & $story_epic_dict.Item($rr[$i + 4]) & "</a></td><td><a href=""https://janisoncls.atlassian.net/browse/" & $rr[$i + 4] & """ title=""" & $rr[$i + 3] & """ target=""_blank"">" & $rr[$i + 4] & "</a></td>"
+;		$story_epic_str = $test_refs & " [" & $story_epic_dict.Item($test_refs) & "]"
+		$story_epic_str = "<tr><td><a href=""https://janisoncls.atlassian.net/browse/" & $story_epic_dict.Item($test_refs) & """ target=""_blank"">" & $story_epic_dict.Item($test_refs) & "</a></td><td><a href=""https://janisoncls.atlassian.net/browse/" & $test_refs & """ title=""" & $test_title & """ target=""_blank"">" & $test_refs & "</a></td>"
 	Else
 
-		_JiraSearchIssues("summary,issuetype,customfield_10008", "key='" & $rr[$i + 4] & "'")
+		_JiraSearchIssues("summary,issuetype,customfield_10008", "key='" & $test_refs & "'")
 
 		if StringInStr($jira_json, """errorMessages"":") = 0 Then
 
 			$jira = StringRegExp($jira_json, '(?U)"summary":"(.*)".*"customfield_10008":"(.*)"', 3)
 	;		ConsoleWrite('@@ Debug(' & @ScriptLineNumber & ') : $jira_json = ' & $jira_json & @CRLF & '>Error code: ' & @error & @CRLF) ;### Debug Console
-			$story_dict.Add($rr[$i + 4], $jira[0])
-			$story_epic_dict.Add($rr[$i + 4], $jira[1])
-;			$story_epic_str = $rr[$i + 4] & " [" & $jira[1] & "]"
-			$story_epic_str = "<tr><td><a href=""https://janisoncls.atlassian.net/browse/" & $jira[1] & """ target=""_blank"">" & $jira[1] & "</a></td><td><a href=""https://janisoncls.atlassian.net/browse/" & $rr[$i + 4] & """ title=""" & $rr[$i + 3] & """ target=""_blank"">" & $rr[$i + 4] & "</a></td>"
+			$story_dict.Add($test_refs, $jira[0])
+			$story_epic_dict.Add($test_refs, $jira[1])
+;			$story_epic_str = $test_refs & " [" & $jira[1] & "]"
+			$story_epic_str = "<tr><td><a href=""https://janisoncls.atlassian.net/browse/" & $jira[1] & """ target=""_blank"">" & $jira[1] & "</a></td><td><a href=""https://janisoncls.atlassian.net/browse/" & $test_refs & """ title=""" & $test_title & """ target=""_blank"">" & $test_refs & "</a></td>"
 		EndIf
 	EndIf
 
@@ -177,8 +207,8 @@ for $i = 0 to (UBound($rr) - 1) step 8
 
 	Local $story_epic_bug_str = $story_epic_str
 
-;	_JiraSearchIssues("summary,issuetype", "issuetype=Bug AND status != Done AND issue in linkedIssues(""" & $rr[$i + 4] & """)")
-	_JiraSearchIssues("summary,issuetype,priority", "issuetype=Bug AND status != Done AND issue in linkedIssues(""" & $rr[$i + 4] & """)")
+;	_JiraSearchIssues("summary,issuetype", "issuetype=Bug AND status != Done AND issue in linkedIssues(""" & $test_refs & """)")
+	_JiraSearchIssues("summary,issuetype,priority", "issuetype=Bug AND status != Done AND issue in linkedIssues(""" & $test_refs & """)")
 ;	ConsoleWrite('@@ Debug(' & @ScriptLineNumber & ') : $jira_json = ' & $jira_json & @CRLF & '>Error code: ' & @error & @CRLF) ;### Debug Console
 
 	if StringInStr($jira_json, ",""total"":0,") = 0 Then
@@ -198,8 +228,8 @@ for $i = 0 to (UBound($rr) - 1) step 8
 			$story_epic_bug_str = $story_epic_bug_str & "<td style=""background-color:red""><a href=""https://janisoncls.atlassian.net/browse/" & $jira[$j] & """ title=""" & $jira[$j + 1] & """ style=""color:white"" target=""_blank"">" & $jira[$j] & "</a></td></tr>"
 
 			_SQLite_Exec(-1, "BEGIN TRANSACTION;")
-	;		_SQLite_Exec(-1, "INSERT INTO defects_in_tests(TestCaseID,BugID) VALUES ('" & $rr[$i + 1] & "','" & $jira[0] & "');")
-			_SQLite_Exec(-1, "INSERT INTO defect(BugID,BugSummary,Priority,TestCaseEpicStory,Impact,ActionRequired,FixDate,FixPhase) VALUES ('<a href=""https://janisoncls.atlassian.net/browse/" & $jira[$j] & """ target=""_blank"">" & $jira[$j] & "</a>','" & $jira[$j + 1] & "','" & $jira[$j + 2] & "','<tr><td><a href=""https://janison.testrail.com/index.php?/cases/view/" & $rr[$i + 1] & """ target=""_blank"">" & $rr[$i + 1] & "</a></td><td style=""width:75px""><a href=""https://janisoncls.atlassian.net/browse/" & $story_epic_dict.Item($rr[$i + 4]) & """ target=""_blank"">" & $story_epic_dict.Item($rr[$i + 4]) & "</a></td><td><a href=""https://janisoncls.atlassian.net/browse/" & $rr[$i + 4] & """ target=""_blank"">" & $rr[$i + 4] & "</a> - " & $rr[$i + 3] & "</td></tr>','','','','');")
+	;		_SQLite_Exec(-1, "INSERT INTO defects_in_tests(TestCaseID,BugID) VALUES ('" & $test_case_id & "','" & $jira[0] & "');")
+			_SQLite_Exec(-1, "INSERT INTO defect(BugID,BugSummary,Priority,TestCaseEpicStory,Impact,ActionRequired,FixDate,FixPhase) VALUES ('<a href=""https://janisoncls.atlassian.net/browse/" & $jira[$j] & """ target=""_blank"">" & $jira[$j] & "</a>','" & $jira[$j + 1] & "','" & $jira[$j + 2] & "','<tr><td><a href=""https://janison.testrail.com/index.php?/cases/view/" & $test_case_id & """ target=""_blank"">" & $test_case_id & "</a></td><td style=""width:75px""><a href=""https://janisoncls.atlassian.net/browse/" & $story_epic_dict.Item($test_refs) & """ target=""_blank"">" & $story_epic_dict.Item($test_refs) & "</a></td><td><a href=""https://janisoncls.atlassian.net/browse/" & $test_refs & """ target=""_blank"">" & $test_refs & "</a> - " & $test_title & "</td></tr>','','','','');")
 			_SQLite_Exec(-1, "COMMIT TRANSACTION;")
 		Next
 
@@ -216,82 +246,82 @@ for $i = 0 to (UBound($rr) - 1) step 8
 ;	ConsoleWrite('@@ Debug(' & @ScriptLineNumber & ') : $story_epic_bug_str = ' & $story_epic_bug_str & @CRLF & '>Error code: ' & @error & @CRLF) ;### Debug Console
 
 
-	Switch $rr[$i + 2]
+	Switch $test_status_id
 
 		case "1"
 
-			$rr[$i + 2] = "Passed"
+			$test_status_id = "Passed"
 
 		case "2"
 
-			$rr[$i + 2] = "Blocked"
+			$test_status_id = "Blocked"
 
 		case "3"
 
-			$rr[$i + 2] = "Untested"
+			$test_status_id = "Untested"
 
 		case "4"
 
-			$rr[$i + 2] = "Retest"
+			$test_status_id = "Retest"
 
 		case "5"
 
-			$rr[$i + 2] = "Failed"
+			$test_status_id = "Failed"
 
 		case "6"
 
-			$rr[$i + 2] = "Known Issue"
+			$test_status_id = "Known Issue"
 
 		case "7"
 
-			$rr[$i + 2] = "Incomplete Automation"
+			$test_status_id = "Incomplete Automation"
 
 		case "8"
 
-			$rr[$i + 2] = "Removed from Run"
+			$test_status_id = "Removed from Run"
 
 		case "9"
 
-			$rr[$i + 2] = "In Progress"
+			$test_status_id = "In Progress"
 	EndSwitch
 
 
-	Switch $rr[$i + 6]
+	Switch $test_case_status
 
 		case "0"
 
-			$rr[$i + 6] = ""
+			$test_case_status = ""
 
 		case "1"
 
-			$rr[$i + 6] = "Not Started"
+			$test_case_status = "Not Started"
 
 		case "2"
 
-			$rr[$i + 6] = "In Progress"
+			$test_case_status = "In Progress"
 
 		case "3"
 
-			$rr[$i + 6] = "In Review"
+			$test_case_status = "In Review"
 
 		case "4"
 
-			$rr[$i + 6] = "Complete"
+			$test_case_status = "Complete"
 
 		case "5"
 
-			$rr[$i + 6] = "Blocked"
+			$test_case_status = "Blocked"
 	EndSwitch
 
-	if StringCompare($rr[$i + 7], "null") = 0 Then
+	if StringCompare($test_case_owner, "null") = 0 Then
 
-		$rr[$i + 7] = ""
+		$test_case_owner = ""
 	Else
 
-		$rr[$i + 7] = $user_dict.Item($rr[$i + 7])
+		$test_case_owner = $user_dict.Item($test_case_owner)
 	EndIf
 
-	_TestRailGetResults($rr[$i])
+	_TestRailGetResults($test_id)
 
 	if StringLen($testrail_json) > 2 Then
 
@@ -375,7 +405,7 @@ for $i = 0 to (UBound($rr) - 1) step 8
 
 						; check if the comment line is a heading to a test case script
 
-						$comment_line[$j] = StringReplace($comment_line[$j], $rr[$i + 5], "<b>" & $rr[$i + 5] & "</b>")
+						$comment_line[$j] = StringReplace($comment_line[$j], $test_auto_script_ref, "<b>" & $test_auto_script_ref & "</b>")
 
 					EndIf
 				Else
@@ -402,14 +432,14 @@ for $i = 0 to (UBound($rr) - 1) step 8
 			EndIf
 		EndIf
 
-;		FileWrite(@ScriptDir & "\" & $rr[$i] & ".txt", "INSERT INTO report(RunID,RunName,ManualTestID,TestTitle,AutoTestID,TestResult,StepDetails) VALUES ('" & $testrail_run_id & "','" & $testrail_run_name & "','" & $rr[$i] & "','" & $rr[$i + 2] & "','<b>" & $rr[$i + 3] & "</b>','" & $rr[$i + 1] & "','" & $comment & "');")
-		GUICtrlCreateListViewItem($testrail_run_id & "|" & $rr[$i] & "|" & $rr[$i + 3] & "|" & $rr[$i + 5] & "|" & $rr[$i + 2] & "|" & $comment & "|" & $rr[$i + 7] & "|" & $rr[$i + 6] & "|" & $story_epic_bug_str, $listview)
-		$sqlite_insert[$i] = "INSERT INTO report(RunID,RunName,ManualTestID,TestTitle,AutoTestID,TestResult,StepDetails,TestCaseID,TestCaseOwner,TestCaseStatus,Issues) VALUES ('" & $testrail_run_id & "','" & $testrail_run_name & "','" & $rr[$i] & "','" & $rr[$i + 3] & "','<b>" & $rr[$i + 5] & "</b>','" & $rr[$i + 2] & "','" & $comment & "','" & $rr[$i + 1] & "','" & $rr[$i + 7] & "','" & $rr[$i + 6] & "','" & $story_epic_bug_str & "');"
+;		FileWrite(@ScriptDir & "\" & $test_id & ".txt", "INSERT INTO report(RunID,RunName,ManualTestID,TestTitle,AutoTestID,TestResult,StepDetails) VALUES ('" & $testrail_run_id & "','" & $testrail_run_name & "','" & $test_id & "','" & $test_status_id & "','<b>" & $test_title & "</b>','" & $test_case_id & "','" & $comment & "');")
+		GUICtrlCreateListViewItem($testrail_run_id & "|" & $test_id & "|" & $test_title & "|" & $test_auto_script_ref & "|" & $test_status_id & "|" & $comment & "|" & $test_case_owner & "|" & $test_case_status & "|" & $story_epic_bug_str, $listview)
+		$sqlite_insert[$i] = "INSERT INTO report(RunID,RunName,ManualTestID,TestTitle,AutoTestID,TestResult,StepDetails,TestCaseID,TestCaseOwner,TestCaseStatus,Issues) VALUES ('" & $testrail_run_id & "','" & $testrail_run_name & "','" & $test_id & "','" & $test_title & "','<b>" & $test_auto_script_ref & "</b>','" & $test_status_id & "','" & $comment & "','" & $test_case_id & "','" & $test_case_owner & "','" & $test_case_status & "','" & $story_epic_bug_str & "');"
 	Else
 
-;		FileWrite(@ScriptDir & "\" & $rr[$i] & ".txt", "INSERT INTO report(RunID,RunName,ManualTestID,TestTitle,AutoTestID,TestResult,StepDetails) VALUES ('" & $testrail_run_id & "','" & $testrail_run_name & "','" & $rr[$i] & "','" & $rr[$i + 2] & "','" & $rr[$i + 3] & "','<b>" & $rr[$i + 1] & "</b>','-');")
-		GUICtrlCreateListViewItem($testrail_run_id & "|" & $rr[$i] & "|" & $rr[$i + 3] & "|" & $rr[$i + 5] & "|" & $rr[$i + 2] & "|-|" & $rr[$i + 7] & "|" & $rr[$i + 6] & "|" & $story_epic_bug_str, $listview)
-		$sqlite_insert[$i] = "INSERT INTO report(RunID,RunName,ManualTestID,TestTitle,AutoTestID,TestResult,StepDetails,TestCaseID,TestCaseOwner,TestCaseStatus,Issues) VALUES ('" & $testrail_run_id & "','" & $testrail_run_name & "','" & $rr[$i] & "','" & $rr[$i + 3] & "','" & $rr[$i + 5] & "','" & $rr[$i + 2] & "','-','" & $rr[$i + 1] & "','" & $rr[$i + 7] & "','" & $rr[$i + 6] & "','" & $story_epic_bug_str & "');"
+;		FileWrite(@ScriptDir & "\" & $test_id & ".txt", "INSERT INTO report(RunID,RunName,ManualTestID,TestTitle,AutoTestID,TestResult,StepDetails) VALUES ('" & $testrail_run_id & "','" & $testrail_run_name & "','" & $test_id & "','" & $test_status_id & "','" & $test_title & "','<b>" & $test_case_id & "</b>','-');")
+		GUICtrlCreateListViewItem($testrail_run_id & "|" & $test_id & "|" & $test_title & "|" & $test_auto_script_ref & "|" & $test_status_id & "|-|" & $test_case_owner & "|" & $test_case_status & "|" & $story_epic_bug_str, $listview)
+		$sqlite_insert[$i] = "INSERT INTO report(RunID,RunName,ManualTestID,TestTitle,AutoTestID,TestResult,StepDetails,TestCaseID,TestCaseOwner,TestCaseStatus,Issues) VALUES ('" & $testrail_run_id & "','" & $testrail_run_name & "','" & $test_id & "','" & $test_title & "','" & $test_auto_script_ref & "','" & $test_status_id & "','-','" & $test_case_id & "','" & $test_case_owner & "','" & $test_case_status & "','" & $story_epic_bug_str & "');"
 	EndIf
 Next
 
@@ -421,6 +451,43 @@ for $i = 0 to (UBound($rr) - 1) step 8
 Next
 
 _SQLite_Exec(-1, "COMMIT TRANSACTION;")
+
+
+GUICtrlSetData($status_input, "Getting Test Cases for TestRail Suite ID " & $suite_id & " ... ")
+_TestRailGetCases($project_id, $suite_id)
+ConsoleWrite('@@ Debug(' & @ScriptLineNumber & ') : $testrail_json = ' & $testrail_json & @CRLF & '>Error code: ' & @error & @CRLF) ;### Debug Console
+$case_detail = StringRegExp($testrail_json, '(?U)"id":(\d+),.*"title":"(.*)","section_id"', 3)
+;Exit
+
+Local $sqlite_run_suite_case_insert[UBound($case_detail)]
+
+for $i = 0 to (UBound($case_detail) - 1) step 2
+
+	$test_case_id = $case_detail[$i]
+	$test_case_title = $case_detail[$i + 1]
+	$sqlite_run_suite_case_insert[$i] = "INSERT INTO run_suite_case(RunID,RunName,SuiteID,CaseID,CaseTitle) VALUES ('" & $testrail_run_id & "','" & $run_name & "','" & $suite_id & "','" & $test_case_id & "','" & $test_case_title & "');"
+Next
+
+Local $story_epic_str = "<table><tbody>"
+
+For $vKey In $story_epic_dict
+
+	$story_epic_str = $story_epic_str & "<tr><td style=""width:75px""><a href=""https://janisoncls.atlassian.net/browse/" & $story_epic_dict.Item($vKey) & """ target=""_blank"">" & $story_epic_dict.Item($vKey) & "</a></td><td><a href=""https://janisoncls.atlassian.net/browse/" & $vKey & """ target=""_blank"">" & $vKey & "</a> - " & $story_dict.Item($vKey) & "</td></tr>"
+Next
+
+$story_epic_str = $story_epic_str & "</tbody></table>"
+
+_SQLite_Exec(-1, "BEGIN TRANSACTION;")
+
+for $i = 0 to (UBound($case_detail) - 1) step 2
+
+	_SQLite_Exec(-1, $sqlite_run_suite_case_insert[$i])
+Next
+
+_SQLite_Exec(-1, "INSERT INTO run_epic_story(RunID,EpicStory) VALUES ('" & $testrail_run_id & "','" & $story_epic_str & "');")
+
+_SQLite_Exec(-1, "COMMIT TRANSACTION;")
+
 
 GUICtrlSetData($progress, 0)
 GUICtrlSetData($status_input, "")

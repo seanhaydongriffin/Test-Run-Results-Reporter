@@ -255,8 +255,13 @@ EndFunc
 
 Func _TestRailGetCases($project_id, $suite_id)
 
-	$response = cURL_easy($testrail_domain & "/index.php?/api/v2/get_cases/" & $project_id & "&suite_id=" & $suite_id, "", 0, 0, "", "Content-Type: application/json", "", 0, 1, 0, $testrail_username & ":" & $testrail_password)
-	ConsoleWrite('@@ Debug(' & @ScriptLineNumber & ') : $response[2] = ' & $response[2] & @CRLF & '>Error code: ' & @error & @CRLF) ;### Debug Console
+;	$response = cURL_easy($testrail_domain & "/index.php?/api/v2/get_cases/" & $project_id & "&suite_id=" & $suite_id, "", 0, 0, "", "Content-Type: application/json", "", 0, 1, 0, $testrail_username & ":" & $testrail_password)
+;	ConsoleWrite('@@ Debug(' & @ScriptLineNumber & ') : $response[2] = ' & $response[2] & @CRLF & '>Error code: ' & @error & @CRLF) ;### Debug Console
+
+	Local $iPID = Run('curl.exe -s -k -H "Content-Type: application/json" -u ' & $testrail_username & ':' & $testrail_password & ' ' & $testrail_domain & '/index.php?/api/v2/get_cases/' & $project_id & '&suite_id=' & $suite_id, @ScriptDir, @SW_HIDE, $STDOUT_CHILD)
+    ProcessWaitClose($iPID)
+    $testrail_json = StdoutRead($iPID)
+;	ConsoleWrite('@@ Debug(' & @ScriptLineNumber & ') : $testrail_json = ' & $testrail_json & @CRLF & '>Error code: ' & @error & @CRLF) ;### Debug Console
 EndFunc
 
 Func _TestRailGetCase($case_id)

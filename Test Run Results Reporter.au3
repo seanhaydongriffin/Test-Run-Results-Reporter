@@ -78,6 +78,8 @@ _SQLite_Open(@ScriptDir & "\" & $app_name & ".sqlite")
 _SQLite_Exec(-1, "CREATE TABLE report (RunID,RunName,ManualTestID,TestTitle,AutoTestID,TestResult,StepDetails,TestCaseID,TestCaseOwner,TestCaseStatus,Issues);") ; CREATE a Table
 ;_SQLite_Exec(-1, "CREATE TABLE defects_in_tests (TestCaseID,BugID,UNIQUE(TestCaseID, BugID));") ; CREATE a Table
 _SQLite_Exec(-1, "CREATE TABLE defect (BugID,BugSummary,Priority,TestCaseEpicStory,Impact,ActionRequired,FixDate,FixPhase);") ;,UNIQUE(TestCaseEpicStory, BugID));") ; CREATE a Table
+_SQLite_Exec(-1, "CREATE TABLE run_suite_case (RunID,RunName,SuiteID,CaseID,CaseTitle);") ; CREATE a Table
+_SQLite_Exec(-1, "CREATE TABLE run_epic_story (RunID,EpicStory);") ; CREATE a Table
 
 ; Startup TestRail
 
@@ -188,6 +190,7 @@ While 1
 									".sd {width: 1000px; text-align: left;}" & @CRLF & _
 									".tc {width: 300px; text-align: center;}" & @CRLF & _
 									".tr {width: 110px; text-align: center;}" & @CRLF & _
+									".ts {width: 40px; text-align: center;}" & @CRLF & _
 									".trp {width: 110px; text-align: center; background-color: yellowgreen;}" & @CRLF & _
 									".trf {width: 110px; text-align: center; background-color: lightcoral; color:white;}" & @CRLF & _
 									".tru {width: 110px; text-align: center; background-color: lightgray;}" & @CRLF & _
@@ -197,19 +200,29 @@ While 1
 									".untested {background-color: lightgray;}" & @CRLF & _
 									".mp {background-color: yellow;}" & @CRLF & _
 									".rh {background-color: seagreen; color: white;}" & @CRLF & _
+									".rhr {background-color: seagreen; color: white; text-align:center; white-space:nowrap; transform-origin:50% 50%; transform: rotate(-90deg);}" & @CRLF & _
+									".rhr:before {background-color: seagreen; color: white; content:''; padding-top:100%; display:inline-block; vertical-align:middle;}" & @CRLF & _
 									".i {background-color: deepskyblue;}" & @CRLF & _
 									"</style>" & @CRLF & _
 									"</head>" & @CRLF & _
 									"<body>" & @CRLF & _
-									"<h2>Outstanding Defects Report</h2>" & @CRLF
+									"<h2>Test Cases Status Summary Report</h2>" & @CRLF
 
-			SQLite_to_HTML_table("SELECT BugID AS ""Defect ID"",BugSummary AS ""Summary"",Priority,'<table><tbody>' || GROUP_CONCAT(TestCaseEpicStory, """") || '</tbody></table>' AS ""Test Case - Epic - Story"",Impact,ActionRequired AS ""Action Required"",FixDate AS ""Fix Date"",FixPhase AS ""Fix Phase"" FROM defect GROUP BY BugID,BugSummary,Priority,Impact,ActionRequired,FixDate,FixPhase ORDER BY BugID;", "tr,ds,tr,tes,tr,tr,tr,tr", "", "")
+			SQLite_to_HTML_table("SELECT DISTINCT RunID || '<br>' || RunName AS ""Test Run"",(SELECT count() FROM report B WHERE B.RunID = A.RunID AND TestResult = 'Passed') AS ""Passed"",(SELECT count() FROM report B WHERE B.RunID = A.RunID AND TestResult = 'Failed') AS ""Failed"",(SELECT count() FROM report B WHERE B.RunID = A.RunID AND TestResult = 'Blocked') AS ""Blocked"",(SELECT count() FROM report B WHERE B.RunID = A.RunID AND TestResult = 'Untested') AS ""Untested"",(SELECT count() FROM report B WHERE B.RunID = A.RunID AND TestResult = 'Deferred') AS ""Deferred"",(SELECT count() FROM report B WHERE B.RunID = A.RunID AND TestResult = 'Passed') + (SELECT count() FROM report B WHERE B.RunID = A.RunID AND TestResult = 'Failed') + (SELECT count() FROM report B WHERE B.RunID = A.RunID AND TestResult = 'Blocked') + (SELECT count() FROM report B WHERE B.RunID = A.RunID AND TestResult = 'Untested') + (SELECT count() FROM report B WHERE B.RunID = A.RunID AND TestResult = 'Deferred') AS ""Total"" FROM report A;", "rh,rh,rh,rh,rh,rh,rh", "tt,ts,ts,ts,ts,ts,ts", "", "")
+
+			$html = $html &			"<h2>Test Cases Planned vs Actuals Report</h2>" & @CRLF
+
+			SQLite_to_HTML_table("SELECT DISTINCT RunID || '<br>' || RunName AS ""Test Suite"",(SELECT count() FROM run_suite_case B WHERE B.RunID = A.RunID) AS ""Planned"",(SELECT count() FROM report C WHERE C.RunID = A.RunID) AS ""Actual"",(SELECT count() FROM run_suite_case B WHERE B.RunID = A.RunID) - (SELECT count() FROM report C WHERE C.RunID = A.RunID) AS ""Difference"",(SELECT EpicStory FROM run_epic_story D WHERE D.RunID = A.RunID) AS ""Epic - Story"",'' AS ""Reason for change"" FROM run_suite_case A;", "rh,rh,rh,rh,rh,rh", "tt,tr,tr,tr,tes,tt", "", "")
+
+			$html = $html &			"<h2>Outstanding Defects Report</h2>" & @CRLF
+
+			SQLite_to_HTML_table("SELECT BugID AS ""Defect ID"",BugSummary AS ""Summary"",Priority,'<table><tbody>' || GROUP_CONCAT(TestCaseEpicStory, """") || '</tbody></table>' AS ""Test Case - Epic - Story"",Impact,ActionRequired AS ""Action Required"",FixDate AS ""Fix Date"",FixPhase AS ""Fix Phase"" FROM defect GROUP BY BugID,BugSummary,Priority,Impact,ActionRequired,FixDate,FixPhase ORDER BY BugID;", "rh,rh,rh,rh,rh,rh,rh,rh", "tr,ds,tr,tes,tr,tr,tr,tr", "", "")
 
 			$html = $html &			"<h2>Test Run Results Report</h2>" & @CRLF
 
 			for $each in $run_id
 
-				SQLite_to_HTML_table("SELECT '<a href=""https://janison.testrail.com/index.php?/tests/view/' || ManualTestID || '"" target=""_blank"">' || ManualTestID || '</a><br>' || TestTitle AS ""Manual Test"",AutoTestID AS ""Auto Test"",TestResult AS ""Test Result"",StepDetails AS ""Step Details"",'<table><tbody><tr><td><a href=""https://janison.testrail.com/index.php?/cases/view/' || TestCaseID || '"" target=""_blank"">' || TestCaseID || '</a></td><td>' || TestCaseOwner || '</td><td>' || TestCaseStatus || '</td></tr></tbody></table>' AS ""Test Case - Owner - Status"",Issues AS ""Epic - Story - Bugs"" FROM report WHERE RunID = '" & $each & "' ORDER BY ManualTestID;", "tt,ati,tr,sd,tc,tc", "", $each)
+				SQLite_to_HTML_table("SELECT '<a href=""https://janison.testrail.com/index.php?/tests/view/' || ManualTestID || '"" target=""_blank"">' || ManualTestID || '</a><br>' || TestTitle AS ""Manual Test"",AutoTestID AS ""Auto Test"",TestResult AS ""Test Result"",StepDetails AS ""Step Details"",'<table><tbody><tr><td><a href=""https://janison.testrail.com/index.php?/cases/view/' || TestCaseID || '"" target=""_blank"">' || TestCaseID || '</a></td><td>' || TestCaseOwner || '</td><td>' || TestCaseStatus || '</td></tr></tbody></table>' AS ""Test Case - Owner - Status"",Issues AS ""Epic - Story - Bugs"" FROM report WHERE RunID = '" & $each & "' ORDER BY ManualTestID;", "rh,rh,rh,rh,rh,rh", "tt,ati,tr,sd,tc,tc", "", $each)
 			Next
 
 			$html = $html &			"</body>" & @CRLF & _
@@ -289,9 +302,10 @@ Func WM_COMMAND($hWnd, $iMsg, $wParam, $lParam)
     Return $GUI_RUNDEFMSG
 EndFunc   ;==>WM_COMMAND
 
-Func SQLite_to_HTML_table($query, $classes, $empty_message, $run_id)
+Func SQLite_to_HTML_table($query, $th_classes, $td_classes, $empty_message, $run_id)
 
-	Local $class = StringSplit($classes, ",", 2)
+	Local $th_class = StringSplit($th_classes, ",", 2)
+	Local $td_class = StringSplit($td_classes, ",", 2)
 
 	Local $aResult, $iRows, $iColumns, $iRval, $run_name = ""
 
@@ -312,6 +326,7 @@ Func SQLite_to_HTML_table($query, $classes, $empty_message, $run_id)
 		$html = $html &	"<h3>Test Run " & $run_id & " - " & $run_name & "</h3>" & @CRLF
 	EndIf
 
+	ConsoleWrite('@@ Debug(' & @ScriptLineNumber & ') : $query = ' & $query & @CRLF & '>Error code: ' & @error & @CRLF) ;### Debug Console
 	$iRval = _SQLite_GetTable2d(-1, $query, $aResult, $iRows, $iColumns)
 
 	If $iRval = $SQLITE_OK Then
@@ -331,7 +346,7 @@ Func SQLite_to_HTML_table($query, $classes, $empty_message, $run_id)
 
 			for $i = 0 to ($num_cols - 1)
 
-				$html = $html & "<th class=""rh"">" & $aResult[0][$i] & "</th>" & @CRLF
+				$html = $html & "<th class=""" & $th_class[$i] & """>" & $aResult[0][$i] & "</th>" & @CRLF
 			Next
 
 			$html = $html & "</tr>" & @CRLF
@@ -350,23 +365,23 @@ Func SQLite_to_HTML_table($query, $classes, $empty_message, $run_id)
 
 							case "Passed"
 
-								$class[$j] = "trp"
+								$td_class[$j] = "trp"
 
 							case "Failed"
 
-								$class[$j] = "trf"
+								$td_class[$j] = "trf"
 
 							case "Untested"
 
-								$class[$j] = "tru"
+								$td_class[$j] = "tru"
 
 							case "Blocked"
 
-								$class[$j] = "trb"
+								$td_class[$j] = "trb"
 						EndSwitch
 					EndIf
 
-					$html = $html & "<td class=""" & $class[$j] & """>" & $aResult[$i][$j] & "</td>" & @CRLF
+					$html = $html & "<td class=""" & $td_class[$j] & """>" & $aResult[$i][$j] & "</td>" & @CRLF
 				Next
 
 				$html = $html & "</tr>" & @CRLF
