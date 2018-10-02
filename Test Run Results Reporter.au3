@@ -77,7 +77,7 @@ FileDelete(@ScriptDir & "\" & $app_name & ".sqlite")
 _SQLite_Open(@ScriptDir & "\" & $app_name & ".sqlite")
 _SQLite_Exec(-1, "CREATE TABLE report (RunID,RunName,ManualTestID,TestTitle,AutoTestID,TestResult,StepDetails,TestCaseID,TestCaseOwner,TestCaseStatus,Issues);") ; CREATE a Table
 ;_SQLite_Exec(-1, "CREATE TABLE defects_in_tests (TestCaseID,BugID,UNIQUE(TestCaseID, BugID));") ; CREATE a Table
-_SQLite_Exec(-1, "CREATE TABLE defect (BugID,BugSummary,Priority,TestCaseEpicStory,Impact,ActionRequired,FixDate,FixPhase);") ;,UNIQUE(TestCaseEpicStory, BugID));") ; CREATE a Table
+_SQLite_Exec(-1, "CREATE TABLE defect (BugID,BugSummary,Priority,TestCaseEpicStory,Impact,ActionRequired,FixDate,FixPhase,LastComment);") ;,UNIQUE(TestCaseEpicStory, BugID));") ; CREATE a Table
 _SQLite_Exec(-1, "CREATE TABLE run_suite_case (RunID,RunName,SuiteID,CaseID,CaseTitle);") ; CREATE a Table
 _SQLite_Exec(-1, "CREATE TABLE run_epic_story (RunID,EpicStory);") ; CREATE a Table
 
@@ -210,13 +210,17 @@ While 1
 
 			SQLite_to_HTML_table("SELECT DISTINCT RunID || '<br>' || RunName AS ""Test Run"",(SELECT count() FROM report B WHERE B.RunID = A.RunID AND TestResult = 'Passed') AS ""Passed"",(SELECT count() FROM report B WHERE B.RunID = A.RunID AND TestResult = 'Failed') AS ""Failed"",(SELECT count() FROM report B WHERE B.RunID = A.RunID AND TestResult = 'Blocked') AS ""Blocked"",(SELECT count() FROM report B WHERE B.RunID = A.RunID AND TestResult = 'Untested') AS ""Untested"",(SELECT count() FROM report B WHERE B.RunID = A.RunID AND TestResult = 'Deferred') AS ""Deferred"",(SELECT count() FROM report B WHERE B.RunID = A.RunID AND TestResult = 'Passed') + (SELECT count() FROM report B WHERE B.RunID = A.RunID AND TestResult = 'Failed') + (SELECT count() FROM report B WHERE B.RunID = A.RunID AND TestResult = 'Blocked') + (SELECT count() FROM report B WHERE B.RunID = A.RunID AND TestResult = 'Untested') + (SELECT count() FROM report B WHERE B.RunID = A.RunID AND TestResult = 'Deferred') AS ""Total"" FROM report A;", "rh,rh,rh,rh,rh,rh,rh", "tt,ts,ts,ts,ts,ts,ts", "", "")
 
-			$html = $html &			"<h2>Test Cases Planned vs Actuals Report</h2>" & @CRLF
+			$html = $html &			"<h2>Outstanding Tests Report</h2>" & @CRLF
 
-			SQLite_to_HTML_table("SELECT DISTINCT RunID || '<br>' || RunName AS ""Test Suite"",(SELECT count() FROM run_suite_case B WHERE B.RunID = A.RunID) AS ""Planned"",(SELECT count() FROM report C WHERE C.RunID = A.RunID) AS ""Actual"",(SELECT count() FROM run_suite_case B WHERE B.RunID = A.RunID) - (SELECT count() FROM report C WHERE C.RunID = A.RunID) AS ""Difference"",(SELECT EpicStory FROM run_epic_story D WHERE D.RunID = A.RunID) AS ""Epic - Story"",'' AS ""Reason for change"" FROM run_suite_case A;", "rh,rh,rh,rh,rh,rh", "tt,tr,tr,tr,tes,tt", "", "")
+			SQLite_to_HTML_table("SELECT '<a href=""https://janison.testrail.com/index.php?/tests/view/' || ManualTestID || '"" target=""_blank"">' || ManualTestID || '</a><br>' || TestTitle AS ""Manual Test"",AutoTestID AS ""Auto Test"",TestResult AS ""Test Result"",StepDetails AS ""Details"",'<table><tbody><tr><td><a href=""https://janison.testrail.com/index.php?/cases/view/' || TestCaseID || '"" target=""_blank"">' || TestCaseID || '</a></td><td>' || TestCaseOwner || '</td><td>' || TestCaseStatus || '</td></tr></tbody></table>' AS ""Test Case - Owner - Status"",Issues AS ""Epic - Story - Bugs"" FROM report WHERE TestResult <> 'Passed' ORDER BY ManualTestID;", "rh,rh,rh,rh,rh,rh", "tt,ati,tr,sd,tc,tc", "", "")
 
 			$html = $html &			"<h2>Outstanding Defects Report</h2>" & @CRLF
 
-			SQLite_to_HTML_table("SELECT BugID AS ""Defect ID"",BugSummary AS ""Summary"",Priority,'<table><tbody>' || GROUP_CONCAT(TestCaseEpicStory, """") || '</tbody></table>' AS ""Test Case - Epic - Story"",Impact,ActionRequired AS ""Action Required"",FixDate AS ""Fix Date"",FixPhase AS ""Fix Phase"" FROM defect GROUP BY BugID,BugSummary,Priority,Impact,ActionRequired,FixDate,FixPhase ORDER BY BugID;", "rh,rh,rh,rh,rh,rh,rh,rh", "tr,ds,tr,tes,tr,tr,tr,tr", "", "")
+			SQLite_to_HTML_table("SELECT BugID AS ""Defect ID"",BugSummary AS ""Summary"",Priority,'<table><tbody>' || GROUP_CONCAT(TestCaseEpicStory, """") || '</tbody></table>' AS ""Test Case - Epic - Story"",LastComment AS ""Date - User - Last Comment"",Impact || '<br>' || ActionRequired AS ""Impact & Action Required"",FixDate || ' - ' || FixPhase AS ""Fix Date & Phase"" FROM defect GROUP BY BugID,BugSummary,Priority,LastComment,Impact,ActionRequired,FixDate,FixPhase ORDER BY BugID;", "rh,rh,rh,rh,rh,rh,rh", "tr,ds,tr,tes,ds,tr,tr", "", "")
+
+			$html = $html &			"<h2>Test Cases Planned vs Actuals Report</h2>" & @CRLF
+
+			SQLite_to_HTML_table("SELECT DISTINCT RunID || '<br>' || RunName AS ""Test Suite"",(SELECT count() FROM run_suite_case B WHERE B.RunID = A.RunID) AS ""Planned"",(SELECT count() FROM report C WHERE C.RunID = A.RunID) AS ""Actual"",(SELECT count() FROM run_suite_case B WHERE B.RunID = A.RunID) - (SELECT count() FROM report C WHERE C.RunID = A.RunID) AS ""Difference"",(SELECT EpicStory FROM run_epic_story D WHERE D.RunID = A.RunID) AS ""Epic - Story"",'' AS ""Reason for change"" FROM run_suite_case A;", "rh,rh,rh,rh,rh,rh", "tt,tr,tr,tr,tes,tt", "", "")
 
 			$html = $html &			"<h2>Test Run Results Report</h2>" & @CRLF
 

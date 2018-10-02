@@ -163,6 +163,15 @@ Func _JiraLogin($username, $password)
 EndFunc
 
 
+
+Func _JiraGetIssueComments($issue_url)
+
+	$response = cURL_easy($issue_url & "/comment", "", 0, 0, "", "Content-Type: application/json", "", 0, 1, 0, $jira_username & ":" & $jira_password)
+;	$response = cURL_easy($jira_domain & "/rest/api/2/search?jql=" & $jql_encoded, "", 0, 0, "", "Content-Type: application/json", "", 0, 1, 0, $jira_username & ":" & $jira_password)
+	$jira_json = $response[2]
+EndFunc
+
+
 ; Search
 
 Func _JiraSearchIssues($fields, $jql)

@@ -14,6 +14,7 @@
 #include <ComboConstants.au3>
 #include <SQLite.au3>
 #include <SQLite.dll.au3>
+#include <Date.au3>
 
 Global $app_name = "Data Extractor"
 Global $project_id
@@ -28,6 +29,7 @@ Global $test_refs
 Global $test_auto_script_ref
 Global $test_case_status
 Global $test_case_owner
+Global $aMyDate, $aMyTime
 
 
 ;#cs
@@ -207,29 +209,46 @@ for $i = 0 to (UBound($rr) - 1) step 8
 
 	Local $story_epic_bug_str = $story_epic_str
 
-;	_JiraSearchIssues("summary,issuetype", "issuetype=Bug AND status != Done AND issue in linkedIssues(""" & $test_refs & """)")
+	;_JiraSearchIssues("", "issuetype=Bug AND status != Done AND issue in linkedIssues(""" & $test_refs & """)")
 	_JiraSearchIssues("summary,issuetype,priority", "issuetype=Bug AND status != Done AND issue in linkedIssues(""" & $test_refs & """)")
 ;	ConsoleWrite('@@ Debug(' & @ScriptLineNumber & ') : $jira_json = ' & $jira_json & @CRLF & '>Error code: ' & @error & @CRLF) ;### Debug Console
+;	Exit
 
 	if StringInStr($jira_json, ",""total"":0,") = 0 Then
 
-		$jira = StringRegExp($jira_json, '(?U)"key":"(.*)".*"summary":"(.*)","issuetype".*"priority":{.*"name":"(.*)"', 3)
+		$jira = StringRegExp($jira_json, '(?U)"id":".*","self":"(.*)".*"key":"(.*)".*"summary":"(.*)","issuetype".*"priority":{.*"name":"(.*)"', 3)
+;		ConsoleWrite('@@ Debug(' & @ScriptLineNumber & ') : $jira_json = ' & $jira_json & @CRLF & '>Error code: ' & @error & @CRLF) ;### Debug Console
 
-		for $j = 0 to (UBound($jira) - 1) Step 3
+		for $j = 0 to (UBound($jira) - 1) Step 4
+
+			_JiraGetIssueComments($jira[$j])
+;			ConsoleWrite('@@ Debug(' & @ScriptLineNumber & ') : $jira_json = ' & $jira_json & @CRLF & '>Error code: ' & @error & @CRLF) ;### Debug Console
+
+			$last_comment = ""
+
+			if StringLen($jira_json) > 2 Then
+
+				$jira_comment = StringRegExp($jira_json, '(?U)"name":"(.*)".*"body":"(.*)","updateAuthor".*"created":"(.*)"', 3)
+				_DateTimeSplit($jira_comment[UBound($jira_comment) - 1], $aMyDate, $aMyTime)
+				$jira_comment_date = $aMyDate[3] & "-" & _DateToMonth($aMyDate[2], 1) & "-" & StringRight($aMyDate[1], 2)
+				$jira_comment_body = StringReplace($jira_comment[UBound($jira_comment) - 2], "\r\n", "<br>")
+				$jira_comment_body = StringReplace($jira_comment_body, "\""", """")
+				$last_comment = $jira_comment_date & " - " & $jira_comment[UBound($jira_comment) - 3] & " - " & $jira_comment_body
+			EndIf
 
 			if $j > 0 Then
 
 				$story_epic_bug_str = $story_epic_bug_str & $story_epic_str
 			EndIf
 
-			$jira[$j + 1] = StringReplace($jira[$j + 1], "\""", "&#34;")
-			$jira[$j + 1] = StringReplace($jira[$j + 1], "'", "&#39;")
+			$jira[$j + 2] = StringReplace($jira[$j + 2], "\""", "&#34;")
+			$jira[$j + 2] = StringReplace($jira[$j + 2], "'", "&#39;")
 
-			$story_epic_bug_str = $story_epic_bug_str & "<td style=""background-color:red""><a href=""https://janisoncls.atlassian.net/browse/" & $jira[$j] & """ title=""" & $jira[$j + 1] & """ style=""color:white"" target=""_blank"">" & $jira[$j] & "</a></td></tr>"
+			$story_epic_bug_str = $story_epic_bug_str & "<td style=""background-color:red""><a href=""https://janisoncls.atlassian.net/browse/" & $jira[$j + 1] & """ title=""" & $jira[$j + 2] & """ style=""color:white"" target=""_blank"">" & $jira[$j + 1] & "</a></td></tr>"
 
 			_SQLite_Exec(-1, "BEGIN TRANSACTION;")
 	;		_SQLite_Exec(-1, "INSERT INTO defects_in_tests(TestCaseID,BugID) VALUES ('" & $test_case_id & "','" & $jira[0] & "');")
-			_SQLite_Exec(-1, "INSERT INTO defect(BugID,BugSummary,Priority,TestCaseEpicStory,Impact,ActionRequired,FixDate,FixPhase) VALUES ('<a href=""https://janisoncls.atlassian.net/browse/" & $jira[$j] & """ target=""_blank"">" & $jira[$j] & "</a>','" & $jira[$j + 1] & "','" & $jira[$j + 2] & "','<tr><td><a href=""https://janison.testrail.com/index.php?/cases/view/" & $test_case_id & """ target=""_blank"">" & $test_case_id & "</a></td><td style=""width:75px""><a href=""https://janisoncls.atlassian.net/browse/" & $story_epic_dict.Item($test_refs) & """ target=""_blank"">" & $story_epic_dict.Item($test_refs) & "</a></td><td><a href=""https://janisoncls.atlassian.net/browse/" & $test_refs & """ target=""_blank"">" & $test_refs & "</a> - " & $test_title & "</td></tr>','','','','');")
+			_SQLite_Exec(-1, "INSERT INTO defect(BugID,BugSummary,Priority,TestCaseEpicStory,Impact,ActionRequired,FixDate,FixPhase,LastComment) VALUES ('<a href=""https://janisoncls.atlassian.net/browse/" & $jira[$j + 1] & """ target=""_blank"">" & $jira[$j + 1] & "</a>','" & $jira[$j + 2] & "','" & $jira[$j + 3] & "','<tr><td><a href=""https://janison.testrail.com/index.php?/cases/view/" & $test_case_id & """ target=""_blank"">" & $test_case_id & "</a></td><td style=""width:75px""><a href=""https://janisoncls.atlassian.net/browse/" & $story_epic_dict.Item($test_refs) & """ target=""_blank"">" & $story_epic_dict.Item($test_refs) & "</a></td><td><a href=""https://janisoncls.atlassian.net/browse/" & $test_refs & """ target=""_blank"">" & $test_refs & "</a> - " & $test_title & "</td></tr>','','','','','" & $last_comment & "');")
 			_SQLite_Exec(-1, "COMMIT TRANSACTION;")
 		Next
 
